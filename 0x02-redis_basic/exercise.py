@@ -21,11 +21,8 @@ def count_calls(method: Callable) -> Callable:
     @wraps(method)
     def wrapper(self, *args, **kwargs):
         """Wrapper function that increments the call count in Redis."""
-        # Use the method's qualified name (__qualname__) as the Redis key
         key = method.__qualname__
-        # Increment the counter in Redis
         self._redis.incr(key)
-        # Call the original method
         return method(self, *args, **kwargs)
     
     return wrapper
@@ -43,13 +40,14 @@ class Cache:
         Store data in Redis using a randomly generated key and return the key.
 
         Args:
-            data: The data to be stored, which can be of type str, bytes, int, or float.
+            data: The data to be stored, which can be of type str, bytes,
+                  int, or float.
 
         Returns:
             str: The key under which the data is stored.
         """
-        key = str(uuid.uuid4())  # Generate a random key
-        self._redis.set(key, data)  # Store the data in Redis
+        key = str(uuid.uuid4())
+        self._redis.set(key, data)
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Union[str, bytes, int, None]:
@@ -58,7 +56,8 @@ class Cache:
 
         Args:
             key: The key under which the data is stored.
-            fn: Optional. A callable that converts the data back to its original format.
+            fn: Optional. A callable that converts the data back to its
+                original format.
 
         Returns:
             The retrieved data, optionally converted using fn.
