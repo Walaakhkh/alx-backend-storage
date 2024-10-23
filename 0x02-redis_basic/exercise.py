@@ -7,6 +7,33 @@ import uuid
 from functools import wraps
 
 
+def count_calls(method: Callable) -> Callable:
+    """ Count how many times methods are called """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        """ Wrapper function to count calls """
+        key = f"{method.__qualname__}"
+        self._redis.incr(key)
+        return method(self, *args, **kwargs)
+    return wrapper
+
+
+def call_history(method: Callable) -> Callable:
+    """ Store the history of inputs and outputs of the method """
+    @wraps(method)
+    def wrapper(self, *args, **kwargs):
+        """ Wrapper function to store call history """
+        input_key = f"{method.__qualname__}:inputs"
+        output_key = f"{method.__qualname__}:outputs"
+
+        self._redis.rpush(input_key, str(args))  # store inputs
+        result = method(self, *args, **kwargs)
+        self._redis.rpush(output_key, str(result))  # store outputs
+
+        return result
+    return wrapper
+
+
 class Cache:
     def __init__(self):
         """ Initialize the Cache class """
@@ -37,46 +64,22 @@ class Cache:
         return self.get(key, lambda d: int(d))
 
 
-def count_calls(method: Callable) -> Callable:
-    """ Count how many times methods are called """
-    @wraps(method)
-    def wrapper(self, *args, **kwargs):
-        """ Wrapper function to count calls """
-        key = f"{method.__qualname__}"
-        self._redis.incr(key)
-        return method(self, *args, **kwargs)
-    return wrapper
-
-
-def call_history(method: Callable) -> Callable:
-    """ Store the history of inputs and outputs of the method """
-    @wraps(method)
-    def wrapper(self, *args, **kwargs):
-        """ Wrapper function to store call history """
-        input_key = f"{method.__qualname__}:inputs"
-        output_key = f"{method.__qualname__}:outputs"
-
-        self._redis.rpush(input_key, str(args))  # store inputs
-        result = method(self, *args, **kwargs)
-        self._redis.rpush(output_key, str(result))  # store outputs
-
-        return result
-    return wrapper
-
-
 def replay(method: Callable):
     """ Display the history of calls to a particular function """
     redis_instance = method.__self__._redis
     method_name = method.__qualname__
-    
+
     inputs_key = f"{method_name}:inputs"
     outputs_key = f"{method_name}:outputs"
 
+    # Retrieve input and output data from Redis
     inputs = redis_instance.lrange(inputs_key, 0, -1)
     outputs = redis_instance.lrange(outputs_key, 0, -1)
 
+    # Print number of times the method was called
     print(f"{method_name} was called {len(inputs)} times:")
 
+    # Use zip to pair inputs and outputs and display each call
     for input_, output in zip(inputs, outputs):
         input_str = input_.decode('utf-8')
         output_str = output.decode('utf-8')
